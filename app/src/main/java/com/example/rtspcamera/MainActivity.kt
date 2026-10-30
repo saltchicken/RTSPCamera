@@ -10,6 +10,8 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import java.net.Inet4Address
+import java.net.NetworkInterface
 
 class MainActivity : AppCompatActivity() {
 
@@ -42,11 +44,12 @@ class MainActivity : AppCompatActivity() {
 
             if (!RtspService.isRunning) {
                 ContextCompat.startForegroundService(this, serviceIntent)
-                btnStartStop.text = "Stop Background Server"
+                // Small delay to allow service to start before updating UI text
+                btnStartStop.postDelayed({ updateButtonState() }, 500)
             } else {
                 serviceIntent.action = "STOP_STREAM"
                 startService(serviceIntent)
-                btnStartStop.text = "Start Background Server"
+                btnStartStop.postDelayed({ updateButtonState() }, 500)
             }
         }
 
@@ -60,9 +63,31 @@ class MainActivity : AppCompatActivity() {
         updateButtonState()
     }
 
+    private fun getTailscaleIp(): String {
+        try {
+            val interfaces = NetworkInterface.getNetworkInterfaces()
+            for (intf in interfaces) {
+                if (intf.name.contains("tun")) {
+                    for (addr in intf.inetAddresses) {
+                        if (!addr.isLoopbackAddress && addr is Inet4Address) {
+                            val ip = addr.hostAddress
+                            if (ip != null && ip.startsWith("100.")) {
+                                return ip
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return "Tailscale IP Not Found"
+    }
+
     private fun updateButtonState() {
         if (RtspService.isRunning) {
-            btnStartStop.text = "Stop Background Server"
+            val tailscaleIp = getTailscaleIp()
+            btnStartStop.text = "Stop Background Server\nrtsp://tailscale:securecam123@$tailscaleIp:1935"
         } else {
             btnStartStop.text = "Start Background Server"
         }
